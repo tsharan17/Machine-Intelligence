@@ -3,9 +3,10 @@ from llm_client import generate_firmware_code
 from code_validator import validate_and_clean_code
 from firmware_writer import write_firmware
 from platformio_runner import build_and_upload
+from speech_input import get_voice_command
 
 
-def run_pipeline(user_command: str, upload: bool = False) -> None:
+def run_pipeline(user_command: str, upload: bool = True) -> None:
     print("[ORCH] Starting Machine Intelligence pipeline")
 
     # 1. Build strict prompt
@@ -32,13 +33,13 @@ def run_pipeline(user_command: str, upload: bool = False) -> None:
         return
     print("[ORCH] Firmware written to src/main.cpp")
 
-    # 5. Build or upload firmware
+    # 5. Build and upload firmware
     if upload:
         print("[ORCH] Upload enabled")
-        success = build_and_upload()
     else:
         print("[ORCH] Build-only mode (no hardware required)")
-        success = build_and_upload()
+
+    success = build_and_upload()
 
     if success:
         print("[ORCH] Pipeline completed successfully")
@@ -47,8 +48,13 @@ def run_pipeline(user_command: str, upload: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    # Change this command to anything you want
-    command = "Blink LED on GPIO 2 every second"
+    print("[SYSTEM] Speak your command after the prompt")
 
-    # upload=False means ESP32 not required
-    run_pipeline(command, upload=False)
+    command = get_voice_command()
+
+    if not command:
+        print("[SYSTEM ERROR] No voice command detected. Exiting.")
+        exit(1)
+
+    # Always try upload; PlatformIO will handle detection
+    run_pipeline(command, upload=True)

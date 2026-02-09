@@ -25,8 +25,20 @@ def build_prompt(user_command: str) -> str:
     if not system_prompt:
         raise ValueError("System prompt file is empty.")
 
+    # Enforce library discipline at prompt level
+    library_rules = """
+LIBRARY RULES (MANDATORY):
+- Always include <Arduino.h>
+- If I2C (Wire) is used, 반드시 include <Wire.h>
+- If SPI is used, 반드시 include <SPI.h>
+- If Serial/UART is used, include <HardwareSerial.h> when required
+- Do NOT assume implicit library inclusion
+"""
+
     final_prompt = (
         system_prompt
+        + "\n\n"
+        + library_rules.strip()
         + "\n\n"
         + "USER COMMAND:\n"
         + user_command.strip()

@@ -12,43 +12,41 @@ from pathlib import Path
 WHISPER_MODEL = "base"   # small | base | medium | large
 LANGUAGE = "en"
 
-
-# Load model once (IMPORTANT: do NOT load inside function repeatedly)
+# Load model once
 print("[WHISPER] Loading Whisper model...")
 model = whisper.load_model(WHISPER_MODEL)
 print("[WHISPER] Model loaded.")
 
 
-def transcribe_audio(audio_path):
+def transcribe_audio(audio_path: Path) -> str:
     """
     Transcribes the given audio file using Whisper.
-    Returns transcribed text or None on failure.
+    Returns transcribed text or empty string on failure.
     """
-
     try:
         audio_path = Path(audio_path)
 
         if not audio_path.exists():
-            print("[WHISPER] Audio file does not exist.")
-            return None
+            print("[WHISPER ERROR] Audio file does not exist.")
+            return ""
 
         print(f"[WHISPER] Transcribing: {audio_path.name}")
 
         result = model.transcribe(
             str(audio_path),
             language=LANGUAGE,
-            fp16=False  # IMPORTANT for Windows CPUs
+            fp16=False  # REQUIRED for Windows CPU
         )
 
         text = result.get("text", "").strip()
 
         if not text:
             print("[WHISPER] No speech detected.")
-            return None
+            return ""
 
-        print(f"[WHISPER] Transcription complete.")
+        print(f"[WHISPER] Transcription: {text}")
         return text
 
     except Exception as e:
         print(f"[WHISPER ERROR] {e}")
-        return None
+        return ""

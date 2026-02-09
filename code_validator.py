@@ -1,8 +1,13 @@
+"""
+code_validator.py
+
+Validates and cleans LLM-generated Arduino/ESP32 firmware code.
+"""
+
 import re
 
 
 FORBIDDEN_KEYWORDS = [
-    "Serial",
     "WiFi",
     "Bluetooth",
     "delayMicroseconds",
@@ -18,27 +23,33 @@ VALID_GPIO_PINS_ESP32 = {
 
 
 def _strip_markdown(code: str) -> str:
-    """
-    Removes markdown fences like ```cpp or ``` from LLM output.
-    """
     code = re.sub(r"```[a-zA-Z]*", "", code)
     code = code.replace("```", "")
     return code.strip()
 
 
-def _ensure_arduino_include(code: str) -> str:
-    """
-    Ensures #include <Arduino.h> is present.
-    """
+def _ensure_required_includes(code: str) -> str:
+    includes = []
+
     if "#include <Arduino.h>" not in code:
-        code = "#include <Arduino.h>\n\n" + code
+        includes.append("#include <Arduino.h>")
+
+    if "Wire." in code and "#include <Wire.h>" not in code:
+        includes.append("#include <Wire.h>")
+
+    if "SPI." in code and "#include <SPI.h>" not in code:
+        includes.append("#include <SPI.h>")
+
+    if "Serial" in code and "#include <HardwareSerial.h>" not in code:
+        includes.append("#include <HardwareSerial.h>")
+
+    if includes:
+        code = "\n".join(includes) + "\n\n" + code
+
     return code
 
 
 def _has_required_functions(code: str) -> bool:
-    """
-    Checks for setup() and loop().
-    """
     return (
         re.search(r"\bvoid\s+setup\s*\(", code) is not None
         and re.search(r"\bvoid\s+loop\s*\(", code) is not None
@@ -46,19 +57,10 @@ def _has_required_functions(code: str) -> bool:
 
 
 def _contains_forbidden_constructs(code: str) -> bool:
-    """
-    Blocks dangerous or unwanted constructs.
-    """
-    for keyword in FORBIDDEN_KEYWORDS:
-        if keyword in code:
-            return True
-    return False
+    return any(keyword in code for keyword in FORBIDDEN_KEYWORDS)
 
 
 def _validate_gpio_usage(code: str) -> bool:
-    """
-    Ensures only valid ESP32 GPIO pins are used.
-    """
     pins = re.findall(r"pinMode\s*\(\s*(\d+)", code)
     pins += re.findall(r"digitalWrite\s*\(\s*(\d+)", code)
 
@@ -69,17 +71,12 @@ def _validate_gpio_usage(code: str) -> bool:
 
 
 def validate_and_clean_code(raw_code: str) -> str | None:
-    """
-    Main validation pipeline.
-    Returns cleaned C++ code if valid, else None.
-    """
-
     if not raw_code or not raw_code.strip():
         print("[VALIDATOR ERROR] Empty code received")
         return None
 
     code = _strip_markdown(raw_code)
-    code = _ensure_arduino_include(code)
+    code = _ensure_required_includes(code)
 
     if not _has_required_functions(code):
         print("[VALIDATOR ERROR] Missing setup() or loop()")
