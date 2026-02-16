@@ -1,14 +1,11 @@
+import json
 import requests
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "qwen2.5-coder:7b"
 
 
-def generate_firmware_code(prompt: str) -> str | None:
-    """
-    Sends a prompt to the local Ollama LLM and returns generated firmware code.
-    """
-
+def generate_firmware_code(prompt: str):
     payload = {
         "model": MODEL_NAME,
         "prompt": prompt,
@@ -24,14 +21,27 @@ def generate_firmware_code(prompt: str) -> str | None:
         response.raise_for_status()
 
         data = response.json()
-        code = data.get("response", "").strip()
+        raw_output = data.get("response", "").strip()
 
-        if not code:
-            print("[LLM ERROR] Empty response from model")
-            return None
+        if not raw_output:
+            print("[LLM ERROR] Empty response")
+            return None, None
 
-        return code
+        # Clean accidental markdown
+        raw_output = raw_output.replace("```json", "").replace("```", "").strip()
 
-    except requests.exceptions.RequestException as e:
-        print(f"[LLM ERROR] Ollama request failed: {e}")
-        return None
+        parsed = json.loads(raw_output)
+
+        firmware_code = parsed.get("firmware_code")
+        pin_map = parsed.get("pin_connections", {})
+
+        return firmware_code, pin_map
+
+    except json.JSONDecodeError:
+        print("[LLM ERROR] Invalid JSON returned by model")
+        print(raw_output)
+        return None, None
+
+    except Exception as e:
+        print(f"[LLM ERROR] {e}")
+        return None, None
