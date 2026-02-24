@@ -1,67 +1,84 @@
-from prompt_manager import build_prompt
-from llm_client import generate_firmware_code
-from code_validator import validate_and_clean_code
-from firmware_writer import write_firmware
-from platformio_runner import build_and_upload
 from speech_input import get_voice_command
+from command_cleaner import clean_command
+from intent_parser import extract_intent
+from resource_ir import ResourceIR
+from board_mapper import load_board
+from resource_allocator import allocate_resources
+from firmware_compiler import generate_firmware
+from firmware_writer import write_firmware
+from code_validator import validate_and_clean_code
+from platformio_runner import build_and_upload
 
 
-def run_pipeline(user_command: str, upload: bool = True) -> None:
-    print("[ORCH] Starting Machine Intelligence pipeline")
-    
-    prompt = build_prompt(user_command)
-    print("[ORCH] Prompt constructed")
+def print_beginner_hardware_report(allocation, board_name):
 
-    firmware_code, pin_map = generate_firmware_code(prompt)
+    print("\n========== CIRCUIT CONNECTION GUIDE ==========\n")
+    print(f"You are using the {board_name.upper()} board.\n")
 
-    if not firmware_code:
-        print("[ORCH ERROR] LLM failed")
+    print("Important:")
+    print("• Do NOT connect 5V signals directly to 3.3V pins.")
+    print("• Always connect GND of external devices to board GND.\n")
+
+    grouped = {}
+
+    for key, info in allocation.items():
+        comp_name, label = key.split(".")
+        grouped.setdefault(comp_name, []).append((label, info))
+
+    for comp, interfaces in grouped.items():
+        print(f"{comp.upper()}")
+
+        for label, info in interfaces:
+            print(f"  {label.upper()} → GPIO {info['pin']}")
+
+        print("  Connect GND to board GND")
+
+        if "ultrasonic" in comp.lower():
+            print("  VCC → 5V")
+            print("  ⚠ Use voltage divider on ECHO if board is 3.3V")
+
+        if "led" in comp.lower():
+            print("  Use 220Ω resistor in series")
+
+        print()
+
+    print("==============================================\n")
+
+
+def run_pipeline(board="esp32", upload=False):
+
+    print("[SYSTEM] Speak your command")
+
+    command = get_voice_command()
+    if not command:
+        print("[SYSTEM] No speech detected.")
         return
 
-    print("[ORCH] Firmware + pin data received")
+    cleaned = clean_command(command)
+    print("[CLEANED]", cleaned)
 
-    clean_code = validate_and_clean_code(firmware_code)
+    intent_dict = extract_intent(cleaned)
+    print("[INTENT]", intent_dict)
+
+    ir = ResourceIR(intent_dict)
+
+    board_profile = load_board(board)
+
+    allocation = allocate_resources(ir, board_profile)
+
+    print_beginner_hardware_report(allocation, board)
+
+    firmware = generate_firmware(ir, allocation)
+
+    clean_code = validate_and_clean_code(firmware)
     if not clean_code:
-        print("[ORCH ERROR] Code validation failed")
+        print("[VALIDATION FAILED]")
         return
 
-    print("[ORCH] Firmware validated")
+    write_firmware(clean_code)
 
-    if not write_firmware(clean_code):
-        print("[ORCH ERROR] Firmware writing failed")
-        return
-
-    print("[ORCH] Firmware written")
-
-    # ---- Detailed Pin Connections ----
-    if pin_map:
-        print("\n========== DETAILED PIN CONNECTIONS ==========\n")
-
-        for component, details in pin_map.items():
-            gpio = details.get("gpio", "Unknown")
-            connection = details.get("connection", "")
-
-            print(f"{component}")
-            print(f"  GPIO: {gpio}")
-            print(f"  Wiring: {connection}\n")
-
-        print("=============================================\n")
-
-    success = build_and_upload(upload)
-
-    if success:
-        print("[ORCH] Pipeline completed successfully")
-    else:
-        print("[ORCH ERROR] PlatformIO step failed")
+    build_and_upload(upload)
 
 
 if __name__ == "__main__":
-    print("[SYSTEM] Speak your command after the prompt")
-
-    command = get_voice_command()
-
-    if not command:
-        print("[SYSTEM ERROR] No voice command detected.")
-        exit(1)
-
-    run_pipeline(command, upload=False)   # build-only safe mode
+    run_pipeline(upload=False)

@@ -1,13 +1,12 @@
 """
 whisper_stt.py
-
-Handles speech-to-text using OpenAI Whisper (local).
+Robust Whisper transcription with confidence filtering
 """
 
 import whisper
 from pathlib import Path
 
-WHISPER_MODEL = "base"
+WHISPER_MODEL = "medium"  # base | small | medium
 LANGUAGE = "en"
 
 print("[WHISPER] Loading Whisper model...")
@@ -28,14 +27,22 @@ def transcribe_audio(audio_path: Path) -> str:
         result = model.transcribe(
             str(audio_path),
             language=LANGUAGE,
-            fp16=False
+            fp16=False,
+            temperature=0.0
         )
 
         text = result.get("text", "").strip()
+        segments = result.get("segments", [])
 
         if not text:
             print("[WHISPER] No speech detected.")
             return ""
+
+        if segments:
+            avg_conf = sum(s["avg_logprob"] for s in segments) / len(segments)
+            if avg_conf < -0.8:
+                print("[WHISPER] Low confidence transcription rejected.")
+                return ""
 
         print(f"[WHISPER] Transcription: {text}")
         return text

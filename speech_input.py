@@ -1,6 +1,6 @@
 """
 speech_input.py
-Robust Windows-compatible microphone handling
+Robust adaptive microphone handling for noisy and silent environments
 """
 
 import sounddevice as sd
@@ -15,10 +15,8 @@ from whisper_stt import transcribe_audio
 
 # -------- Configuration --------
 AUDIO_DIR = Path("audio")
-SPEECH_THRESHOLD = 0.002
-SILENCE_DURATION = 2
-MAX_RECORD_SECONDS = 15
-
+SILENCE_DURATION = 1.2
+MAX_RECORD_SECONDS = 12
 DEVICE_INDEX = 5  # Change if needed
 
 _audio_queue = queue.Queue()
@@ -28,6 +26,26 @@ def _audio_callback(indata, frames, time_info, status):
     if status:
         print(f"[AUDIO WARNING] {status}")
     _audio_queue.put(indata.copy())
+
+
+def measure_ambient_noise(sample_rate, channels):
+    print("[AUDIO] Calibrating ambient noise...")
+    samples = []
+
+    with sd.InputStream(
+        samplerate=sample_rate,
+        channels=channels,
+        dtype="float32"
+    ):
+        start = time.time()
+        while time.time() - start < 1.0:
+            frame = sd.rec(int(sample_rate * 0.05), samplerate=sample_rate, channels=channels)
+            sd.wait()
+            samples.append(frame)
+
+    ambient = np.mean(np.abs(np.concatenate(samples)))
+    print(f"[AUDIO] Ambient noise level: {ambient:.6f}")
+    return ambient
 
 
 def record_audio_until_silence() -> Path | None:
@@ -43,15 +61,18 @@ def record_audio_until_silence() -> Path | None:
         channels = int(device_info["max_input_channels"])
 
         if channels < 1:
-            print("[AUDIO ERROR] Selected device has no input channels.")
+            print("[AUDIO ERROR] No input channels.")
             return None
 
-        print(f"[AUDIO] Using sample rate: {sample_rate}")
-        print(f"[AUDIO] Using channels: {channels}")
+        print(f"[AUDIO] Sample rate: {sample_rate}")
+        print(f"[AUDIO] Channels: {channels}")
 
     except Exception as e:
         print(f"[AUDIO ERROR] Device setup failed: {e}")
         return None
+
+    ambient_noise = measure_ambient_noise(sample_rate, channels)
+    speech_threshold = ambient_noise * 3
 
     recorded_frames = []
     recording = False
@@ -73,7 +94,7 @@ def record_audio_until_silence() -> Path | None:
 
                 amplitude = np.max(np.abs(frame))
 
-                if amplitude > SPEECH_THRESHOLD and not recording:
+                if amplitude > speech_threshold and not recording:
                     print("[AUDIO] Speech detected, recording...")
                     recording = True
                     start_time = time.time()
@@ -81,7 +102,7 @@ def record_audio_until_silence() -> Path | None:
                 if recording:
                     recorded_frames.append(frame)
 
-                    if amplitude < SPEECH_THRESHOLD:
+                    if amplitude < speech_threshold:
                         if silence_start is None:
                             silence_start = time.time()
                         elif time.time() - silence_start >= SILENCE_DURATION:
@@ -95,7 +116,7 @@ def record_audio_until_silence() -> Path | None:
                         break
 
     except Exception as e:
-        print(f"[AUDIO ERROR] Failed to open input stream: {e}")
+        print(f"[AUDIO ERROR] Stream failure: {e}")
         return None
 
     if not recorded_frames:
@@ -103,6 +124,11 @@ def record_audio_until_silence() -> Path | None:
         return None
 
     audio_data = np.concatenate(recorded_frames, axis=0)
+
+    # Normalize audio
+    max_val = np.max(np.abs(audio_data))
+    if max_val > 0:
+        audio_data = audio_data / max_val
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     audio_path = AUDIO_DIR / f"command_{timestamp}.wav"
