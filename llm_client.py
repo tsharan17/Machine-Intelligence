@@ -6,6 +6,7 @@ MODEL_NAME = "qwen2.5-coder:7b"
 
 
 def generate_firmware_code(prompt: str):
+
     payload = {
         "model": MODEL_NAME,
         "prompt": prompt,
@@ -21,27 +22,15 @@ def generate_firmware_code(prompt: str):
         response.raise_for_status()
 
         data = response.json()
-        raw_output = data.get("response", "").strip()
+        raw = data.get("response", "").strip()
 
-        if not raw_output:
-            print("[LLM ERROR] Empty response")
-            return None, None
+        raw = raw.replace("```json", "").replace("```", "").strip()
 
-        # Clean accidental markdown
-        raw_output = raw_output.replace("```json", "").replace("```", "").strip()
+        parsed = json.loads(raw)
 
-        parsed = json.loads(raw_output)
-
-        firmware_code = parsed.get("firmware_code")
-        pin_map = parsed.get("pin_connections", {})
-
-        return firmware_code, pin_map
-
-    except json.JSONDecodeError:
-        print("[LLM ERROR] Invalid JSON returned by model")
-        print(raw_output)
-        return None, None
+        return parsed
 
     except Exception as e:
-        print(f"[LLM ERROR] {e}")
-        return None, None
+        print("[LLM ERROR]", e)
+        print("RAW OUTPUT:\n", raw)
+        return None

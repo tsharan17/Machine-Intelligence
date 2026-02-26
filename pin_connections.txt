@@ -1,0 +1,4 @@
+=== PIN CONNECTIONS ===
+
+Ultrasonic Sensor -> GPIO 2
+Buzzer -> GPIO 4

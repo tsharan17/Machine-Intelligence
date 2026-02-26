@@ -1,84 +1,101 @@
 from speech_input import get_voice_command
-from command_cleaner import clean_command
-from intent_parser import extract_intent
-from resource_ir import ResourceIR
-from board_mapper import load_board
-from resource_allocator import allocate_resources
-from firmware_compiler import generate_firmware
-from firmware_writer import write_firmware
+from prompt_manager import build_prompt
+from llm_client import generate_firmware_code
 from code_validator import validate_and_clean_code
+from firmware_writer import write_firmware
+from board_mapper import load_board
+from pin_allocator import allocate_pins
 from platformio_runner import build_and_upload
 
 
-def print_beginner_hardware_report(allocation, board_name):
+def replace_placeholders(code: str, pin_map: dict):
 
-    print("\n========== CIRCUIT CONNECTION GUIDE ==========\n")
-    print(f"You are using the {board_name.upper()} board.\n")
+    for name, pin in pin_map.items():
 
-    print("Important:")
-    print("• Do NOT connect 5V signals directly to 3.3V pins.")
-    print("• Always connect GND of external devices to board GND.\n")
+        # Replace {{LED_PIN}}
+        code = code.replace(
+            "{{" + name.upper() + "_PIN}}",
+            str(pin)
+        )
 
-    grouped = {}
+        # Safety: if model used LED_PIN without braces
+        code = code.replace(
+            name.upper() + "_PIN",
+            str(pin)
+        )
 
-    for key, info in allocation.items():
-        comp_name, label = key.split(".")
-        grouped.setdefault(comp_name, []).append((label, info))
+    return code
 
-    for comp, interfaces in grouped.items():
-        print(f"{comp.upper()}")
 
-        for label, info in interfaces:
-            print(f"  {label.upper()} → GPIO {info['pin']}")
+def print_circuit_diagram(board: str, pin_map: dict):
 
-        print("  Connect GND to board GND")
+    print("\n========== COMPLETE CIRCUIT DIAGRAM ==========\n")
+    print(f"Board: {board.upper()}\n")
 
-        if "ultrasonic" in comp.lower():
-            print("  VCC → 5V")
-            print("  ⚠ Use voltage divider on ECHO if board is 3.3V")
+    print("Power Connections:")
+    print("  • Connect external device GND to board GND")
+    print("  • Use correct voltage (ESP32 = 3.3V logic)\n")
 
-        if "led" in comp.lower():
-            print("  Use 220Ω resistor in series")
+    for name, pin in pin_map.items():
+
+        print(f"{name.upper()} CONNECTION:")
+
+        print(f"  GPIO {pin}  --->  {name} signal pin")
+        print(f"  GND        --->  {name} GND")
+
+        if name.lower() == "led":
+            print("  Use 220Ω resistor between GPIO and LED anode")
+            print("  LED cathode ---> GND")
 
         print()
 
     print("==============================================\n")
 
 
-def run_pipeline(board="esp32", upload=False):
+def run_pipeline(board="esp32"):
 
     print("[SYSTEM] Speak your command")
 
     command = get_voice_command()
+
     if not command:
-        print("[SYSTEM] No speech detected.")
+        print("[SYSTEM] No voice command detected")
         return
 
-    cleaned = clean_command(command)
-    print("[CLEANED]", cleaned)
+    prompt = build_prompt(command)
 
-    intent_dict = extract_intent(cleaned)
-    print("[INTENT]", intent_dict)
+    parsed = generate_firmware_code(prompt)
 
-    ir = ResourceIR(intent_dict)
+    if not parsed:
+        print("[SYSTEM] LLM failed")
+        return
+
+    if "components" not in parsed or "firmware_code" not in parsed:
+        print("[SYSTEM ERROR] Invalid LLM JSON structure")
+        print(parsed)
+        return
+
+    components = parsed["components"]
+    firmware_code = parsed["firmware_code"]
 
     board_profile = load_board(board)
 
-    allocation = allocate_resources(ir, board_profile)
+    pin_map = allocate_pins(components, board_profile)
 
-    print_beginner_hardware_report(allocation, board)
+    firmware_code = replace_placeholders(firmware_code, pin_map)
 
-    firmware = generate_firmware(ir, allocation)
+    clean_code = validate_and_clean_code(firmware_code)
 
-    clean_code = validate_and_clean_code(firmware)
     if not clean_code:
-        print("[VALIDATION FAILED]")
+        print("[SYSTEM] Validation failed")
         return
 
-    write_firmware(clean_code)
+    write_firmware(clean_code, pin_map)
 
-    build_and_upload(upload)
+    print_circuit_diagram(board, pin_map)
+
+    build_and_upload()
 
 
 if __name__ == "__main__":
-    run_pipeline(upload=False)
+    run_pipeline("esp32")  # change to "arduino" if needed

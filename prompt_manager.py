@@ -1,9 +1,3 @@
-"""
-prompt_manager.py
-
-Builds the final prompt sent to the LLM.
-"""
-
 from pathlib import Path
 
 PROMPT_DIR = Path("prompts")
@@ -11,37 +5,40 @@ SYSTEM_PROMPT_FILE = PROMPT_DIR / "firmware_system_prompt.txt"
 
 
 def build_prompt(user_command: str) -> str:
-    if not user_command or not user_command.strip():
-        raise ValueError("Empty user command received.")
-
-    if not SYSTEM_PROMPT_FILE.exists():
-        raise FileNotFoundError(
-            f"System prompt file not found: {SYSTEM_PROMPT_FILE}"
-        )
 
     with open(SYSTEM_PROMPT_FILE, "r", encoding="utf-8") as f:
         system_prompt = f.read().strip()
 
-    if not system_prompt:
-        raise ValueError("System prompt file is empty.")
+    STRICT_RULES = """
+RETURN STRICT JSON ONLY.
+NO explanations.
+NO markdown.
 
-    # Enforce library discipline at prompt level
-    library_rules = """
-LIBRARY RULES (MANDATORY):
-- Always include <Arduino.h>
-- If I2C (Wire) is used, 반드시 include <Wire.h>
-- If SPI is used, 반드시 include <SPI.h>
-- If Serial/UART is used, include <HardwareSerial.h> when required
-- Do NOT assume implicit library inclusion
+FORMAT:
+
+{
+  "components": [
+    {
+      "name": "LED",
+      "signal_type": "digital_output"
+    }
+  ],
+  "firmware_code": "FULL ARDUINO CODE HERE"
+}
+
+CRITICAL RULES:
+- Use {{COMPONENTNAME_PIN}} placeholders directly inside pinMode() and digitalWrite()
+- Example: pinMode({{LED_PIN}}, OUTPUT);
+- DO NOT define #define LED_PIN
+- DO NOT declare const pin variables
+- DO NOT use LED_BUILTIN
+- Always include setup() and loop()
 """
 
-    final_prompt = (
+    return (
         system_prompt
         + "\n\n"
-        + library_rules.strip()
-        + "\n\n"
-        + "USER COMMAND:\n"
+        + STRICT_RULES
+        + "\n\nUSER COMMAND:\n"
         + user_command.strip()
     )
-
-    return final_prompt
