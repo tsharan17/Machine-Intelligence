@@ -1,46 +1,81 @@
-def build_firmware(actions, pin_map):
+from component_registry import get_component
 
-    code = "#include <Arduino.h>\n\n"
-    code += "void setup() {\n"
 
-    # Configure all pins
-    used_pins = set(pin_map.values())
-    for pin in used_pins:
-        code += f"    pinMode({pin}, OUTPUT);\n"
+def build_firmware(actions: list, pin_map: dict) -> str:
+    """
+    Deterministically builds Arduino C++ firmware from a logic plan and pin map.
+    No LLM involved — pure code generation.
 
-    code += "}\n\n"
-    code += "void loop() {\n"
+    Args:
+        actions: list of action dicts from logic_planner, e.g.:
+            [{"type": "blink", "component": "LED", "times": 5, "interval_ms": 500}]
+        pin_map: nested dict from pin_allocator, e.g.:
+            {"LED": {"SIGNAL": 2}, "BUZZER": {"SIGNAL": 4}}
+
+    Returns:
+        Full Arduino C++ source string.
+    """
+
+    setup_lines = []
+    loop_lines  = []
+    setup_done  = set()  # prevent duplicate setup blocks for same component
+
+    # Inject cross-component context before generating code
+    _enrich_actions(actions, pin_map)
 
     for action in actions:
 
-        if action["type"] == "blink":
+        comp_name = action.get("component", "").upper().strip()
 
-            comp = action["component"].upper()
-            pin = pin_map[f"{comp}_GPIO"]
+        if not comp_name:
+            print(f"[FIRMWARE BUILDER] Action missing 'component' field: {action}")
+            continue
 
-            times = action.get("times", 1)
-            interval = action.get("interval_ms", 1000)
+        comp = get_component(comp_name)
+        if comp is None:
+            print(f"[FIRMWARE BUILDER] Unknown component: '{comp_name}' — skipping.")
+            continue
 
-            buzzer_pin = None
-            if action.get("with"):
-                buzzer_pin = pin_map.get("BUZZER_GPIO")
+        comp_pins = pin_map.get(comp_name, {})
 
-            code += f"    for(int i=0;i<{times};i++){{\n"
-            code += f"        digitalWrite({pin}, HIGH);\n"
+        # Setup block — generated only once per component
+        if comp_name not in setup_done:
+            setup_block = comp.generate_setup(comp_pins, action)
+            if setup_block:
+                setup_lines.append(setup_block.rstrip())
+            setup_done.add(comp_name)
 
-            if buzzer_pin:
-                code += f"        digitalWrite({buzzer_pin}, HIGH);\n"
+        # Loop block
+        loop_block = comp.generate_loop(comp_pins, action)
+        if loop_block:
+            loop_lines.append(loop_block.rstrip())
 
-            code += f"        delay({interval});\n"
-            code += f"        digitalWrite({pin}, LOW);\n"
+    setup_body = "\n".join(setup_lines)
+    loop_body  = "\n".join(loop_lines)
 
-            if buzzer_pin:
-                code += f"        digitalWrite({buzzer_pin}, LOW);\n"
+    return f"""#include <Arduino.h>
 
-            code += f"        delay({interval});\n"
-            code += "    }\n"
+void setup() {{
+{setup_body}
+}}
 
-    code += "    while(true);\n"
-    code += "}\n"
+void loop() {{
+{loop_body}
+}}
+"""
 
-    return code
+
+def _enrich_actions(actions: list, pin_map: dict):
+    """
+    Inject cross-component pin references into actions before code generation.
+
+    Example: ultrasonic detect_distance action gets the buzzer's GPIO pin
+    injected so the ultrasonic loop can directly drive the buzzer.
+    """
+    buzzer_pin = None
+    if "BUZZER" in pin_map:
+        buzzer_pin = pin_map["BUZZER"].get("SIGNAL")
+
+    for action in actions:
+        if action.get("type") == "detect_distance" and buzzer_pin:
+            action["buzzer_pin"] = buzzer_pin

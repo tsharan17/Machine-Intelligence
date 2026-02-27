@@ -1,53 +1,80 @@
-import json
-import requests
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen2.5-coder:7b"
+from llm_client import query_llm_json
 
 
-def plan_logic(command: str):
+def plan_logic(command: str) -> dict | None:
+    """
+    Uses LLM to interpret a natural language command into a structured
+    list of hardware actions.
+
+    Returns:
+        {
+            "actions": [
+                {
+                    "type": "blink",
+                    "component": "LED",
+                    "times": 5,
+                    "interval_ms": 500,
+                    "threshold_cm": 0,
+                    "with": "BUZZER"
+                }
+            ]
+        }
+    """
 
     prompt = f"""
 Return STRICT JSON only.
-No explanation.
+No explanation. No markdown.
 
-Interpret the command into structured intent.
+Interpret this hardware command into structured actions.
 
 Allowed action types:
-- blink
-- detect_distance
-- detect_light
-- simple_on_off
+  - blink           : toggle a digital output on/off repeatedly
+  - detect_distance : use ultrasonic sensor to measure distance
+  - detect_light    : use analog sensor to measure light level
+  - simple_on_off   : turn a component fully on or off
 
-Format:
-
+FORMAT:
 {{
   "actions": [
     {{
-      "type": "...",
-      "component": "...",
-      "times": 0,
-      "interval_ms": 0,
+      "type": "blink",
+      "component": "LED",
+      "times": 5,
+      "interval_ms": 500,
       "threshold_cm": 0,
       "with": null
     }}
   ]
 }}
 
+Rules:
+- Component names must match: LED, BUZZER, ULTRASONIC, SERVO, SERIAL
+- "times": 0 means repeat forever
+- "interval_ms": milliseconds between on/off toggle
+- "threshold_cm": only relevant for detect_distance actions
+- "with": optional paired component name (e.g. BUZZER paired with LED blink)
+- If command says "5 times" → times: 5
+- If command says "blink" with no count → times: 0
+
 Command:
 {command}
 """
 
-    payload = {
-        "model": MODEL_NAME,
-        "prompt": prompt,
-        "stream": False
-    }
+    result = query_llm_json(prompt)
 
-    response = requests.post(OLLAMA_URL, json=payload, timeout=120)
-    response.raise_for_status()
+    if not result:
+        print("[LOGIC PLANNER] LLM returned no result.")
+        return None
 
-    raw = response.json()["response"].strip()
-    raw = raw.replace("```json", "").replace("```", "").strip()
+    if "actions" not in result or not isinstance(result["actions"], list):
+        print("[LOGIC PLANNER] Malformed response — missing 'actions' list.")
+        return None
 
-    return json.loads(raw)
+    # Normalize component names
+    for action in result["actions"]:
+        if "component" in action and action["component"]:
+            action["component"] = action["component"].upper().strip()
+        if "with" in action and action["with"]:
+            action["with"] = action["with"].upper().strip()
+
+    return result
