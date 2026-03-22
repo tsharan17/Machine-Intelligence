@@ -1,0 +1,3 @@
+=== PIN CONNECTIONS ===
+
+LED.SIGNAL  →  GPIO 2
