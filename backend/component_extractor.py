@@ -1,4 +1,4 @@
-from llm_client import query_llm_json
+from backend.llm_client import query_llm_json
 
 
 def extract_components_and_logic(command: str) -> dict | None:

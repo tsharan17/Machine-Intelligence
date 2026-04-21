@@ -6,7 +6,7 @@ def validate_and_clean_code(raw_code: str) -> str | None:
     Validates and cleans Arduino firmware code.
 
     - Strips markdown fences if present
-    - Ensures #include <Arduino.h> is present
+    - Ensures required headers are present
     - Confirms setup() and loop() both exist
 
     Returns cleaned code string, or None if invalid.
@@ -20,9 +20,19 @@ def validate_and_clean_code(raw_code: str) -> str | None:
     code = re.sub(r"```[a-zA-Z]*", "", raw_code)
     code = code.replace("```", "").strip()
 
-    # Add Arduino header if missing
+    includes = []
+
+    # Ensure Arduino core include
     if "#include <Arduino.h>" not in code:
-        code = "#include <Arduino.h>\n\n" + code
+        includes.append("#include <Arduino.h>")
+
+    # ✅ NEW: Auto-detect I2C usage (MPU, sensors, etc.)
+    if "Wire" in code and "#include <Wire.h>" not in code:
+        includes.append("#include <Wire.h>")
+
+    # Prepend includes if needed
+    if includes:
+        code = "\n".join(includes) + "\n\n" + code
 
     # Confirm structural validity
     if "void setup()" not in code:

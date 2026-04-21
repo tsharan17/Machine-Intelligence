@@ -96,8 +96,8 @@ export default function App() {
   const generate = async (command: string) => {
     try {
       // Check build quota with cloud API
-      await axios.post(`${CLOUD}/license/use-build`, {},
-        { headers: { Authorization: `Bearer ${token}` } })
+      //await axios.post(`${CLOUD}/license/use-build`, {},
+        //{ headers: { Authorization: `Bearer ${token}` } })
  
       const r = await axios.post(`${BACKEND}/generate`, { command, board: 'esp32' })
       setFirmware(r.data.firmware)

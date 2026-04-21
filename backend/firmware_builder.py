@@ -1,4 +1,4 @@
-from component_registry import get_component
+from backend.component_registry import get_component
 
 
 def build_firmware(actions: list, pin_map: dict) -> str:

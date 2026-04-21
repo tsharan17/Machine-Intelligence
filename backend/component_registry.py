@@ -13,6 +13,7 @@ from components.potentiometer import Potentiometer
 from components.pir_sensor import PIRSensor
 from components.soil_moisture import SoilMoisture
 from components.sound_sensor import SoundSensor
+from components.mpu9250 import MPU9250
 
 # ─────────────────────────────────────────────────────────────
 # Keys must be UPPERCASE — matched against normalized LLM output
@@ -79,6 +80,9 @@ registry = {
     "MICROPHONE":           SoundSensor(),
     "MIC":                  SoundSensor(),
     "NOISE SENSOR":         SoundSensor(),
+
+    "MPU9250":              MPU9250(),
+    "MPU6500":              MPU9250(),
 }
 
 

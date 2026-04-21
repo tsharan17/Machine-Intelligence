@@ -1,4 +1,4 @@
-from llm_client import query_llm_json
+from backend.llm_client import query_llm_json
 
 VALID_SIGNAL_TYPES = {
     "digital_output",
@@ -21,6 +21,16 @@ def resolve_interfaces(component_name: str) -> dict | None:
             ]
         }
     """
+
+    # ✅ HARD FIX for MPU (prevents LLM stupidity)
+    if component_name.lower() in ["mpu9250", "mpu6500"]:
+        return {
+            "name": "MPU9250",
+            "interfaces": [
+                {"label": "SDA", "signal_type": "digital_input"},
+                {"label": "SCL", "signal_type": "digital_output"}
+            ]
+        }
 
     prompt = f"""
 Return STRICT JSON only.
@@ -47,6 +57,9 @@ Rules:
 - Buzzer: SIGNAL (digital_output)
 - Servo: SIGNAL (pwm_output)
 - Serial/UART components: return empty interfaces list
+- MPU9250 / MPU6500:
+    SDA → digital_input
+    SCL → digital_output
 """
 
     result = query_llm_json(prompt)

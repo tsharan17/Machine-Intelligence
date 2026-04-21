@@ -11,7 +11,7 @@ from datetime import datetime
 import queue
 import time
 
-from whisper_stt import transcribe_audio
+from backend.whisper_stt import transcribe_audio
 
 # -------- Configuration --------
 AUDIO_DIR = Path("audio")

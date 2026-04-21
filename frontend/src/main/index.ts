@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, session } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { spawn } from 'child_process'
 import Store from 'electron-store'
@@ -6,7 +6,7 @@ import Store from 'electron-store'
 const store = new Store()
 
 function startPython() {
-  const py = spawn('python', [join(__dirname, '../../backend/main.py')])
+  const py = spawn('python', [join(__dirname, '../../../backend/main.py')])
   py.stdout.on('data', d => console.log('[Python]', d.toString()))
   py.stderr.on('data', d => console.error('[Python]', d.toString()))
 }
@@ -34,17 +34,6 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://*.railway.app http://localhost:*"
-        ]
-      }
-    })
-  })
-
   startPython()
   setTimeout(createWindow, 2500)
 })

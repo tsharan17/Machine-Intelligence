@@ -1,4 +1,4 @@
-from llm_client import query_llm_json
+from backend.llm_client import query_llm_json
 
 
 def plan_logic(command: str) -> dict | None:
@@ -32,6 +32,7 @@ Allowed action types:
   - detect_distance : use ultrasonic sensor to measure distance
   - detect_light    : use analog sensor to measure light level
   - simple_on_off   : turn a component fully on or off
+  - read_motion     : read IMU sensor data (MPU9250 / MPU6500)
 
 FORMAT:
 {{
@@ -48,13 +49,14 @@ FORMAT:
 }}
 
 Rules:
-- Component names must match: LED, BUZZER, ULTRASONIC, SERVO, SERIAL
+- Component names must match: LED, BUZZER, ULTRASONIC, SERVO, SERIAL, MPU9250, MPU6500
 - "times": 0 means repeat forever
 - "interval_ms": milliseconds between on/off toggle
 - "threshold_cm": only relevant for detect_distance actions
 - "with": optional paired component name (e.g. BUZZER paired with LED blink)
 - If command says "5 times" → times: 5
 - If command says "blink" with no count → times: 0
+- If command mentions MPU, IMU, gyroscope, or accelerometer → use "read_motion"
 
 Command:
 {command}

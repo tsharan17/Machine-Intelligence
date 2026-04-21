@@ -1,16 +1,16 @@
-from speech_input import get_voice_command
-from command_cleaner import clean_command
-from component_extractor import extract_components_and_logic
-from hardware_resolver import resolve_interfaces
-from pin_allocator import allocate_pins
-from board_mapper import load_board
-from code_validator import validate_and_clean_code
-from firmware_writer import write_firmware
-from firmware_builder import build_firmware
-from circuit_printer import print_circuit_diagram
-from logic_planner import plan_logic
-from platformio_runner import build_and_upload
-from error_handler import handle_pipeline_error
+from backend.speech_input import get_voice_command
+from backend.command_cleaner import clean_command
+from backend.component_extractor import extract_components_and_logic
+from backend.hardware_resolver import resolve_interfaces
+from backend.pin_allocator import allocate_pins
+from backend.board_mapper import load_board
+from backend.code_validator import validate_and_clean_code
+from backend.firmware_writer import write_firmware
+from backend.firmware_builder import build_firmware
+from backend.circuit_printer import print_circuit_diagram
+from backend.logic_planner import plan_logic
+from backend.platformio_runner import build_and_upload
+from backend.error_handler import handle_pipeline_error
 
 
 def run_pipeline(board: str = "esp32"):
