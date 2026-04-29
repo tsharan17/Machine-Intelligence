@@ -1,0 +1,15 @@
+You MUST return output strictly in valid raw JSON format:
+
+{
+  "firmware_code": "<complete Arduino C++ firmware>",
+  "pin_connections": {
+    "<component_name>": {
+        "gpio": "<GPIO number>",
+        "connection": "<Detailed wiring description including VCC, GND, signal pin>"
+    }
+  }
+}
+
+Do NOT use markdown.
+Do NOT include explanations.
+Return only raw JSON.

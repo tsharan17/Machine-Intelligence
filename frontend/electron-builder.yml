@@ -1,0 +1,80 @@
+appId: com.machineintelligence.app
+productName: Machine Intelligence
+copyright: Copyright © 2025 Machine Intelligence
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+
+# Bundle the PyInstaller backend folder alongside the app
+extraResources:
+  - from: '../backend/dist/machine_intelligence_backend'
+    to: 'backend/machine_intelligence_backend'
+    filter:
+      - '**/*'
+
+asarUnpack:
+  - resources/**
+
+# ── Windows ────────────────────────────────────────────────────────────────────
+win:
+  executableName: MachineintelligenceApp
+  icon: resources/icon.ico
+  # Uncomment and set these when you have a code-signing certificate:
+  # certificateFile: cert.pfx
+  # certificatePassword: ${env.CERT_PASSWORD}
+  # signingHashAlgorithms: ['sha256']
+
+nsis:
+  artifactName: 'Machine Intelligence Setup ${version}.${ext}'
+  shortcutName: Machine Intelligence
+  uninstallDisplayName: Machine Intelligence
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+
+# ── macOS ──────────────────────────────────────────────────────────────────────
+mac:
+  icon: resources/icon.icns
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    - NSMicrophoneUsageDescription: Machine Intelligence needs microphone access for voice commands.
+    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+  notarize: false
+
+dmg:
+  artifactName: 'Machine Intelligence ${version}.${ext}'
+
+# ── Linux ──────────────────────────────────────────────────────────────────────
+linux:
+  target:
+    - AppImage
+    - deb
+  maintainer: machineintelligence@example.com
+  category: Development
+  icon: resources/icon.png
+
+appImage:
+  artifactName: 'Machine Intelligence ${version}.${ext}'
+
+# ── Misc ───────────────────────────────────────────────────────────────────────
+npmRebuild: false
+
+# ── Auto-updates via GitHub Releases ──────────────────────────────────────────
+# Replace YOUR_GITHUB_USERNAME with your actual GitHub username
+publish:
+  provider: github
+  owner: tsharan17
+  repo: machine-intelligence
+  releaseType: release
